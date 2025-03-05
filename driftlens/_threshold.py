@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from sklearn.model_selection import StratifiedKFold
-from driftlens import driftlens
+from driftguard.driftlens import driftlens
 from tqdm import tqdm
 import numpy as np
 import json
