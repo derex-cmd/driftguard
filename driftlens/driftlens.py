@@ -1,11 +1,11 @@
 import os.path
 
-from driftlens import _frechet_drift_distance as fdd
-from driftlens import _baseline as _baseline
-from driftlens import _threshold as _threshold
+from driftguard.driftlens import _frechet_drift_distance as fdd
+from driftguard.driftlens import _baseline as _baseline
+from driftguard.driftlens import _threshold as _threshold
 
 import matplotlib.pyplot as plt
-from driftlens import _utils as utils
+from driftguard.driftlens import _utils as utils
 
 import numpy as np
 import pandas as pd
