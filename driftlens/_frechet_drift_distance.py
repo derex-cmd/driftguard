@@ -24,7 +24,8 @@ def get_mean(E) -> np.ndarray:
     """
     return E.mean(0)
 
-#Hellinger distance
+#Hellinger distance DriftGuard
+
 def frechet_distance(mu_x, mu_y, sigma_x, sigma_y) -> float:
     """ Computes the Hellinger distance between two multivariate Gaussian distributions.
 
