@@ -27,7 +27,7 @@ def get_mean(E) -> np.ndarray:
 #Hellinger distance DriftGuard
 
 def frechet_distance(mu_x, mu_y, sigma_x, sigma_y) -> float:
-    """ Computes the Hellinger distance between two multivariate Gaussian distributions.
+    """ Computes the Mahalanobis distance between two multivariate Gaussian distributions.
 
     Args:
         mu_x (:obj:`numpy.ndarray`): Mean of the first Gaussian, of shape *(n_features)*.
@@ -36,16 +36,12 @@ def frechet_distance(mu_x, mu_y, sigma_x, sigma_y) -> float:
         sigma_y (:obj:`numpy.ndarray`): Covariance matrix of the second Gaussian, of shape *(n_features, n_features)*.
 
     Returns:
-        :obj:`float`: Hellinger distance between the two Gaussian distributions.
-
+        :obj:`float`: Mahalanobis distance between the two Gaussian distributions.
     """
-    det_sigma_x = np.linalg.det(sigma_x)
-    det_sigma_y = np.linalg.det(sigma_y)
-    det_sigma_avg = np.linalg.det((sigma_x + sigma_y) / 2)
-
-    exp_term = np.exp(-0.125 * (mu_x - mu_y).T @ np.linalg.inv((sigma_x + sigma_y) / 2) @ (mu_x - mu_y))
-    distance = np.sqrt(1 - (exp_term * (det_sigma_x ** 0.25) * (det_sigma_y ** 0.25) / (det_sigma_avg ** 0.5)))
-    
+    diff = mu_x - mu_y
+    pooled_cov = (sigma_x + sigma_y) / 2
+    inv_cov = np.linalg.inv(pooled_cov)
+    distance = np.sqrt(diff.T @ inv_cov @ diff)
     return distance
 
 # I swapped the distance metric to **Hellinger distance**, which is great for capturing both mean and shape changes!
