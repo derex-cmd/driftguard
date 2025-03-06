@@ -47,5 +47,3 @@ def frechet_distance(mu_x, mu_y, sigma_x, sigma_y) -> float:
     distance = np.sqrt(diff.T @ inv_cov @ diff)
     return distance
 
-# I swapped the distance metric to **Hellinger distance**, which is great for capturing both mean and shape changes!
-# Let me know if you want me to refine or test this! 🚀
