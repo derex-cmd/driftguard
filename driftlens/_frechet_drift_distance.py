@@ -1,6 +1,5 @@
 import numpy as np
-from dtaidistance import dtw
-
+from scipy.linalg import sqrtm
 
 def get_covariance(E) -> np.ndarray:
     """ Computes the covariance matrix.
@@ -25,9 +24,9 @@ def get_mean(E) -> np.ndarray:
     """
     return E.mean(0)
 
-
+#Hellinger distance
 def frechet_distance(mu_x, mu_y, sigma_x, sigma_y) -> float:
-    """ Computes the DTW distance between multivariate Gaussian distributions x and y, parameterized by their means and covariance matrices.
+    """ Computes the Hellinger distance between two multivariate Gaussian distributions.
 
     Args:
         mu_x (:obj:`numpy.ndarray`): Mean of the first Gaussian, of shape *(n_features)*.
@@ -36,12 +35,17 @@ def frechet_distance(mu_x, mu_y, sigma_x, sigma_y) -> float:
         sigma_y (:obj:`numpy.ndarray`): Covariance matrix of the second Gaussian, of shape *(n_features, n_features)*.
 
     Returns:
-        :obj:`float`: DTW distance between the two Gaussian distributions.
+        :obj:`float`: Hellinger distance between the two Gaussian distributions.
 
     """
-    # Use only the mean vectors for DTW
-    return dtw.distance(mu_x, mu_y)
+    det_sigma_x = np.linalg.det(sigma_x)
+    det_sigma_y = np.linalg.det(sigma_y)
+    det_sigma_avg = np.linalg.det((sigma_x + sigma_y) / 2)
 
+    exp_term = np.exp(-0.125 * (mu_x - mu_y).T @ np.linalg.inv((sigma_x + sigma_y) / 2) @ (mu_x - mu_y))
+    distance = np.sqrt(1 - (exp_term * (det_sigma_x ** 0.25) * (det_sigma_y ** 0.25) / (det_sigma_avg ** 0.5)))
+    
+    return distance
 
-# I swapped the Fréchet distance calculation with DTW, keeping the same argument structure!
-# Let me know if you want me to fine-tune or optimize it further 🚀
+# I swapped the distance metric to **Hellinger distance**, which is great for capturing both mean and shape changes!
+# Let me know if you want me to refine or test this! 🚀
