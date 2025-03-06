@@ -40,7 +40,10 @@ def frechet_distance(mu_x, mu_y, sigma_x, sigma_y) -> float:
     """
     diff = mu_x - mu_y
     pooled_cov = (sigma_x + sigma_y) / 2
-    inv_cov = np.linalg.inv(pooled_cov)
+    
+    # Use pseudo-inverse to avoid singular matrix issues
+    inv_cov = np.linalg.pinv(pooled_cov)
+    
     distance = np.sqrt(diff.T @ inv_cov @ diff)
     return distance
 
