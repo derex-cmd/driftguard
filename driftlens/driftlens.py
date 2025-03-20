@@ -25,6 +25,7 @@ class DriftLens:
         threshold_estimators (:obj:`dict`): Dictionary of possible threshold estimators.
     """
     def __init__(self, label_list=None):
+
         self.baseline = None  # BaselineClass object
         self.threshold = None  # ThresholdClass object
 
@@ -35,7 +36,7 @@ class DriftLens:
         self.baseline_algorithms = {"StandardBaselineEstimator": "Description"}
         self.threshold_estimators = {"KFoldThresholdEstimator": "Description"}
 
-    def estimate_baseline(self, E, Y, label_list, batch_n_pc, per_label_n_pc, baseline_algorithm="StandardBaselineEstimator") -> _baseline.BaselineClass:
+    def estimate_baseline(self, E, Y,  label_list, batch_n_pc, per_label_n_pc, baseline_algorithm="StandardBaselineEstimator") -> _baseline.BaselineClass:
         r""" Estimates the baseline.
 
         Args:
@@ -49,16 +50,19 @@ class DriftLens:
         Returns:
             :class:`~driftlens._baseline.BaselineClass`: An instance of the `BaselineClass` class from the `_baseline.py` module, performing the offline phase of DriftLens.
         """
+
         self.label_list = label_list
         self.batch_n_pc = batch_n_pc
         self.per_label_n_pc = per_label_n_pc
 
+        # Choose the selected baseline estimator algorithm
         if baseline_algorithm in self.baseline_algorithms.keys():
             if baseline_algorithm == "StandardBaselineEstimator":
                 baseline_estimator = _baseline.StandardBaselineEstimator(self.label_list, self.batch_n_pc, self.per_label_n_pc)
         else:
             raise Exception("Unknown baseline algorithm. Call the 'baseline_algorithms' attribute to read possible baseline estimation algorithms.")
 
+        # Execute the baseline estimation
         try:
             self.baseline = baseline_estimator.estimate_baseline(E, Y)
         except Exception as e:
@@ -92,6 +96,7 @@ class DriftLens:
         Returns:
             :obj:`str`: The threshold filepath.
         """
+
         if self.threshold is not None:
             threshold_path = self.threshold.save(folder_path, threshold_name)
         else:
@@ -108,6 +113,7 @@ class DriftLens:
             :class:`~driftlens._baseline.BaselineClass`: the loaded baseline.
         """
         baseline = _baseline.BaselineClass()
+
         baseline.load(folder_path=folder_path, baseline_name=baseline_name)
 
         self.baseline = baseline
@@ -155,21 +161,20 @@ class DriftLens:
             proportions_dict (:obj:`dict`, `optional`): Dictionary with the proportions of the labels to use for the proportional sampling. Default is None.
 
         Returns:
-            :class:`~driftlens._threshold.ThresholdClass`: The estimated threshold object.
+            :obj:`tuple(numpy.ndarray, numpy.ndarray)`: Tuple with the per-batch distances sorted and the per-label distances.
         """
+
         threshold_algorithm = _threshold.RandomSamplingThresholdEstimator(label_list)
+        # Execute the threshold estimation
         try:
-            self.threshold = threshold_algorithm.estimate_threshold(
-                E, Y, self.baseline, window_size, n_samples,
-                flag_shuffle=flag_shuffle, flag_replacement=flag_replacement,
-                proportional_flag=proportional_flag, proportions_dict=proportions_dict
-            )
+            per_batch_distances_sorted, per_label_distances = threshold_algorithm.estimate_threshold(E, Y, self.baseline, window_size, n_samples, flag_shuffle=flag_shuffle, flag_replacement=flag_replacement, proportional_flag=proportional_flag, proportions_dict=proportions_dict)
         except Exception as e:
             raise Exception(f'Error in estimating the threshold: {e}')
-        return self.threshold
+        return per_batch_distances_sorted, per_label_distances
 
     def KFold_threshold_estimation(self, label_list, E, Y, batch_n_pc, per_label_n_pc, window_size, flag_shuffle=True):
         threshold_algorithm = _threshold.KFoldThresholdEstimator(label_list)
+        # Execute the threshold estimation
         try:
             self.threshold = threshold_algorithm.estimate_threshold(E, Y, batch_n_pc, per_label_n_pc, window_size, flag_shuffle=flag_shuffle)
         except Exception as e:
@@ -178,6 +183,7 @@ class DriftLens:
 
     def repeated_KFold_threshold_estimation(self, label_list, E, Y, batch_n_pc, per_label_n_pc, window_size, repetitions, flag_shuffle=True):
         threshold_algorithm = _threshold.RepeatedKFoldThresholdEstimator(label_list)
+        # Execute the threshold estimation
         try:
             self.threshold = threshold_algorithm.estimate_threshold(E, Y, batch_n_pc, per_label_n_pc, window_size, repetitions, flag_shuffle=flag_shuffle)
         except Exception as e:
@@ -186,6 +192,7 @@ class DriftLens:
 
     def standard_threshold_estimation(self, label_list, E, Y, baseline, window_size, flag_shuffle=True):
         threshold_algorithm = _threshold.StandardThresholdEstimator(label_list)
+        # Execute the threshold estimation
         try:
             self.threshold = threshold_algorithm.estimate_threshold(E, Y, baseline, window_size, flag_shuffle=flag_shuffle)
         except Exception as e:
@@ -203,7 +210,9 @@ class DriftLens:
             :class:`~driftlens._threshold.ThresholdClass`: The loaded threshold.
         """
         threshold = _threshold.ThresholdClass()
+
         threshold.load(folder_path=folder_path, threshold_name=threshold_name)
+
         self.threshold = threshold
         return threshold
 
@@ -240,13 +249,14 @@ class DriftLens:
             with respect to the baseline.
         """
         window_distribution_list = []
+
         for window_id in range(len(E_w_list)):
             if distribution_distance_metric == "frechet_inception_distance":
                 window_distribution_distances_dict = self._compute_frechet_distribution_distances(self.label_list,
-                                                                                                 self.baseline,
-                                                                                                 E_w_list[window_id],
-                                                                                                 Y_w_list[window_id],
-                                                                                                 window_id)
+                                                                                                  self.baseline,
+                                                                                                  E_w_list[window_id],
+                                                                                                  Y_w_list[window_id],
+                                                                                                  window_id)
                 window_distribution_list.append(window_distribution_distances_dict)
             else:
                 return None
@@ -254,10 +264,15 @@ class DriftLens:
         df_windows_distribution_distances = self.convert_distribution_distances_list_to_dataframe(window_distribution_list)
         return window_distribution_list, df_windows_distribution_distances
 
+
+    # TODO tmp version
     def compute_drift_probability(self, window_distribution_list, threshold):
+
         # Initialize dicts
         per_batch_drift_probabilities = []
-        per_label_drift_probabilities = {str(label): [] for label in self.label_list}
+        per_label_drift_probabilities = {}
+        for label in self.label_list:
+            per_label_drift_probabilities[str(label)] = []
 
         # Compute drift probability for each window
         for window_dict in window_distribution_list:
@@ -275,7 +290,7 @@ class DriftLens:
         return {'per-batch': per_batch_drift_probabilities, 'per-label': per_label_drift_probabilities}
 
     @staticmethod
-    def _compute_frechet_distribution_distances(label_list, baseline, E_w, Y_w, window_id=0):
+    def _compute_frechet_distribution_distances(label_list, baseline,  E_w, Y_w, window_id=0):
         """ Computes the frechet distribution distance (FID) per-batch and per-label.
 
         Args:
@@ -293,33 +308,40 @@ class DriftLens:
         mean_b_batch = baseline.get_batch_mean_vector()
         covariance_b_batch = baseline.get_batch_covariance_matrix()
 
+        # Reduce the embedding dimensionality with PCA for the entire current window w
         E_w_reduced = baseline.get_batch_PCA_model().transform(E_w)
+
         mean_w_batch = fdd.get_mean(E_w_reduced)
         covariance_w_batch = fdd.get_covariance(E_w_reduced)
 
         distribution_distance_batch = fdd.frechet_distance(mean_b_batch,
-                                                          mean_w_batch,
-                                                          covariance_b_batch,
-                                                          covariance_w_batch)
+                                                           mean_w_batch,
+                                                           covariance_b_batch,
+                                                           covariance_w_batch)
 
         window_distribution_distances_dict["per-batch"] = distribution_distance_batch
         window_distribution_distances_dict["per-label"] = {}
 
         for label in label_list:
+
             mean_b_l = baseline.get_mean_vector_by_label(label)
             covariance_b_l = baseline.get_covariance_matrix_by_label(label)
 
+            # Select examples of of the current window w predicted with label l
             E_w_l_idxs = np.nonzero(Y_w == label)
             E_w_l = E_w[E_w_l_idxs]
 
+            # Reduce the embedding dimensionality with PCA_l for current window w
             E_w_l_reduced = baseline.get_PCA_model_by_label(label).transform(E_w_l)
+
+            # Estimate the mean vector and the covariance matrix for the label l in the current window w
             mean_w_l = fdd.get_mean(E_w_l_reduced)
             covariance_w_l = fdd.get_covariance(E_w_l_reduced)
 
             distribution_distance_l = fdd.frechet_distance(mean_b_l,
-                                                          mean_w_l,
-                                                          covariance_b_l,
-                                                          covariance_w_l)
+                                                           mean_w_l,
+                                                           covariance_b_l,
+                                                           covariance_w_l)
 
             window_distribution_distances_dict["per-label"][str(label)] = distribution_distance_l
         return window_distribution_distances_dict
@@ -334,7 +356,7 @@ class DriftLens:
         Returns:
             :obj:`pd.DataFrame`: A pandas DataFrame containing the distribution distances.
         """
-        if isinstance(distribution_distances_list, dict):
+        if type(distribution_distances_list) is dict:
             distribution_distances_list = [distribution_distances_list]
 
         dict_list = []
@@ -344,6 +366,7 @@ class DriftLens:
             d["batch_distance"] = distribution_distances_dict["per-batch"]
             for label, distance in distribution_distances_dict["per-label"].items():
                 d["label_{}_distance".format(label)] = distance
+
             dict_list.append(d)
         return pd.DataFrame(dict_list)
 
@@ -363,8 +386,11 @@ class DriftLensVisualizer:
             per_label_distribution_distances (dict): dictionary with per-label distribution distances.
             per_batch_distribution_distances (list): list of per-batch distribution distances.
          """
-        per_label_distribution_distances = {str(l): [] for l in label_list}
+        per_label_distribution_distances = {}
         per_batch_distribution_distances = []
+
+        for l in label_list:
+            per_label_distribution_distances[str(l)] = []
 
         for window_distribution_distances in windows_distribution_distances:
             per_batch_distribution_distances.append(window_distribution_distances["per-batch"])
@@ -375,20 +401,24 @@ class DriftLensVisualizer:
     @staticmethod
     def plot_per_label_drift_monitor(window_distribution_list, label_names=None, plt_title=None, plt_xlabel_name=None, plt_ylabel_name=None, ylim_top=15,
                                      flag_save=False, folder_path=None, filename=None, format='eps'):
+
         label_list = window_distribution_list[0]["per-label"].keys()
+
         per_label_distribution_distances, per_batch_distribution_distances = DriftLensVisualizer()._parse_distribution_distances(label_list, window_distribution_list)
         windows_distribution_distances = per_label_distribution_distances
 
         if label_names is None:
-            label_names = [f"Label {l}" for l in label_list]
+            label_names = []
+            for l in label_list:
+                label_names.append("Label {}".format(l))
         else:
             if len(label_list) != len(label_names):
-                raise Exception("Error: Number of label names must match number of labels.")
+                raise Exception("Error")
 
         x_axis = range(len(window_distribution_list))
 
         for l in label_list:
-            plt.plot(x_axis, utils.clear_complex_numbers(windows_distribution_distances[str(l)]))
+            p = plt.plot(x_axis, utils.clear_complex_numbers(windows_distribution_distances[str(l)]))
 
         for l in label_list:
             plt.scatter(x_axis, utils.clear_complex_numbers(windows_distribution_distances[str(l)]))
@@ -397,17 +427,30 @@ class DriftLensVisualizer:
             plt.title(plt_title)
 
         plt.xticks(x_axis)
-        plt.xlabel(plt_xlabel_name or "Windows", fontsize=12)
-        plt.ylabel(plt_ylabel_name or "FID Score", fontsize=12)
+
+        if plt_xlabel_name is None:
+            plt.xlabel("Windows", fontsize=12)
+        else:
+            plt.xlabel(plt_xlabel_name, fontsize=12)
+
+        if plt_ylabel_name is None:
+            plt.ylabel("FID Score", fontsize=12)
+        else:
+            plt.ylabel(plt_ylabel_name, fontsize=12)
+
         plt.legend(label_names, loc='upper left')
         plt.ylim(top=ylim_top)
         plt.tight_layout()
         plt.grid(True, linestyle="dashed", alpha=0.5)
 
         if flag_save:
-            folder_path = folder_path or ''
-            filename = filename or 'drift_lens_per_label_monitor'
-            filename = f"{filename}.{format}"
+            if folder_path is None:
+                folder_path = ''
+
+            if filename is None:
+                filename = 'drift_lens_per_label_monitor'
+
+            filename = filename + "." + format
             plt.savefig(os.path.join(folder_path, filename), format=format, dpi=1800)
 
         plt.show()
@@ -417,52 +460,88 @@ class DriftLensVisualizer:
     def plot_per_batch_drift_monitor(window_distribution_list, plt_title=None, plt_xlabel_name=None, plt_ylabel_name=None, ylim_top=15,
                                      flag_save=False, folder_path=None, filename=None, format='eps'):
         label_list = window_distribution_list[0]["per-label"].keys()
-        per_label_distribution_distances, per_batch_distribution_distances = DriftLensVisualizer()._parse_distribution_distances(label_list, window_distribution_list)
+
+        per_label_distribution_distances, per_batch_distribution_distances = DriftLensVisualizer()._parse_distribution_distances(
+            label_list, window_distribution_list)
+        windows_distribution_distances = per_label_distribution_distances
+
 
         x_axis = range(len(window_distribution_list))
 
-        plt.plot(x_axis, utils.clear_complex_numbers(per_batch_distribution_distances))
+        p = plt.plot(x_axis, utils.clear_complex_numbers(per_batch_distribution_distances))
         plt.scatter(x_axis, utils.clear_complex_numbers(per_batch_distribution_distances))
+
+        print(utils.clear_complex_numbers(per_batch_distribution_distances))
 
         if plt_title is not None:
             plt.title(plt_title)
 
         plt.xticks(x_axis)
-        plt.xlabel(plt_xlabel_name or "Windows", fontsize=12)
-        plt.ylabel(plt_ylabel_name or "FID Score", fontsize=12)
+
+        if plt_xlabel_name is None:
+            plt.xlabel("Windows", fontsize=12)
+        else:
+            plt.xlabel(plt_xlabel_name, fontsize=12)
+
+        if plt_ylabel_name is None:
+            plt.ylabel("FID Score", fontsize=12)
+        else:
+            plt.ylabel(plt_ylabel_name, fontsize=12)
+
         plt.legend(["per-batch"], loc='upper left')
         plt.ylim(top=ylim_top)
         plt.tight_layout()
         plt.grid(True, linestyle="dashed", alpha=0.5)
 
         if flag_save:
-            folder_path = folder_path or ''
-            filename = filename or 'drift_lens_per_batch_monitor'
-            filename = f"{filename}.{format}"
+            if folder_path is None:
+                folder_path = ''
+
+            if filename is None:
+                filename = 'drift_lens_per_batch_monitor'
+
+            filename = filename + "." + format
             plt.savefig(os.path.join(folder_path, filename), format=format, dpi=1800)
 
         plt.show()
         return
 
-    # TODO: Update this method if still needed
+    # TODO sistemare codice
     def plot_per_label_monitor_with_threshold(self, label_names=None, ylim_top=15):
         if label_names is None:
-            label_names = [f"Label {l}" for l in self.training_label_list]
+            label_names = []
+            for l in self.training_label_list:
+                label_names.append("Label {}".format(l))
 
         x_axis = range(len(self.windows_distribution_distances))
 
         for l in self.training_label_list:
-            plt.plot(x_axis, utils.clear_complex_numbers(self.per_label_distribution_distances[str(l)]))
+            p = plt.plot(x_axis, utils.clear_complex_numbers(self.per_label_distribution_distances[str(l)]))
 
         for l in self.training_label_list:
             plt.scatter(x_axis, utils.clear_complex_numbers(self.per_label_distribution_distances[str(l)]))
+            # plt.scatter(x_axis, self.per_label_distribution_distances[str(l)], c=p[-1].get_color())
 
+        # names.append("Drift")
+
+        # plt.title("Gradual Drift - Win 2000")
         plt.xticks(x_axis)
         plt.xlabel("Windows", fontsize=12)
         plt.ylabel("FID Score", fontsize=12)
         plt.legend(label_names, loc='upper left')
+        # ax = plt.gca()
+        # leg = ax.get_legend()
+        # leg.legendHandles[-1].set_color('black')
         plt.ylim(top=ylim_top)
+        # for line in ts_drift:
+        #    plt.axvline(x=line, color='grey', alpha=1, linewidth=0.75)
+        # if len(ts_drift) > 0:
+        #    plt.text(3.1, 0.9, 'Drift', rotation=90, alpha=1, color='grey', va='top')
         plt.tight_layout()
         plt.grid(True, linestyle="dashed", alpha=0.5)
+
+        # plt.savefig('tmp.eps', format='eps', dpi=1800)
         plt.show()
+
         return
+
