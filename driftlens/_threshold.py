@@ -352,55 +352,60 @@ class RandomSamplingThresholdEstimator(ThresholdEstimatorMethod):
         return threshold
 
     def _compute_distribution_distances_with_none_check(self, drift_lens, baseline, E_windows, Y_windows):
-        """ Custom method to handle None PCA models and insufficient samples in baseline. """
-        distribution_distances = []
-        for i, (E_w, Y_w) in enumerate(zip(E_windows, Y_windows)):
-            window_distances = {"per-batch": None, "per-label": {}}
-            
-            # Batch distance: Check if enough samples for covariance
-            if len(E_w) < 2:
+    """ Custom method to handle None PCA models and insufficient samples in baseline. """
+    distribution_distances = []
+    for i, (E_w, Y_w) in enumerate(zip(E_windows, Y_windows)):
+        window_distances = {"per-batch": None, "per-label": {}}
+        
+        # Batch distance: Ensure enough samples for valid covariance
+        if len(E_w) < 2:
+            window_distances["per-batch"] = 0
+            print(f"Warning: Window {i} has fewer than 2 samples ({len(E_w)}). Assigned default batch distance 0.")
+        else:
+            pca_batch = baseline.get_batch_PCA_model()
+            if pca_batch is None:
                 window_distances["per-batch"] = 0
-                print(f"Warning: Window {i} has fewer than 2 samples ({len(E_w)}). Assigned default batch distance 0.")
+                print(f"Warning: Batch PCA model is None for window {i}. Assigned default batch distance 0.")
             else:
-                E_w_reduced = baseline.get_batch_PCA_model().transform(E_w)
+                E_w_reduced = pca_batch.transform(E_w)
                 batch_mean = fdd.get_mean(E_w_reduced)
                 batch_cov = fdd.get_covariance(E_w_reduced)
-                if batch_cov.ndim == 0:  # Scalar covariance
+                if batch_cov.size == 1:  # Scalar covariance (1 sample or degenerate case)
                     window_distances["per-batch"] = 0
-                    print(f"Warning: Batch covariance for window {i} is scalar. Assigned default batch distance 0.")
+                    print(f"Warning: Batch covariance for window {i} is scalar ({batch_cov}). Assigned default batch distance 0.")
                 else:
                     window_distances["per-batch"] = fdd.frechet_distance(
                         baseline.get_batch_mean_vector(), batch_mean,
                         baseline.get_batch_covariance_matrix(), batch_cov)
 
-            # Per-label distances
-            for label in self.label_list:
-                pca_model = baseline.get_PCA_model_by_label(label)
-                if pca_model is None:
+        # Per-label distances
+        for label in self.label_list:
+            pca_model = baseline.get_PCA_model_by_label(label)
+            if pca_model is None:
+                window_distances["per-label"][str(label)] = 0
+                print(f"Warning: No PCA model for label {label}. Assigned default distance 0.")
+            else:
+                E_l_idxs = np.nonzero(Y_w == label)[0]
+                if len(E_l_idxs) == 0:
                     window_distances["per-label"][str(label)] = 0
-                    print(f"Warning: No PCA model for label {label}. Assigned default distance 0.")
+                elif len(E_l_idxs) == 1:
+                    window_distances["per-label"][str(label)] = 0
+                    print(f"Warning: Only one sample for label {label} in window {i}. Assigned default distance 0.")
                 else:
-                    E_l_idxs = np.nonzero(Y_w == label)[0]
-                    if len(E_l_idxs) == 0:
+                    E_l = E_w[E_l_idxs]
+                    E_l_reduced = pca_model.transform(E_l)
+                    mean_l = fdd.get_mean(E_l_reduced)
+                    cov_l = fdd.get_covariance(E_l_reduced)
+                    if cov_l.size == 1:  # Scalar covariance (degenerate case)
                         window_distances["per-label"][str(label)] = 0
-                    elif len(E_l_idxs) == 1:
-                        window_distances["per-label"][str(label)] = 0
-                        print(f"Warning: Only one sample for label {label} in window {i}. Assigned default distance 0.")
+                        print(f"Warning: Covariance for label {label} in window {i} is scalar ({cov_l}). Assigned default distance 0.")
                     else:
-                        E_l = E_w[E_l_idxs]
-                        E_l_reduced = pca_model.transform(E_l)
-                        mean_l = fdd.get_mean(E_l_reduced)
-                        cov_l = fdd.get_covariance(E_l_reduced)
-                        if cov_l.ndim == 0:  # Scalar covariance
-                            window_distances["per-label"][str(label)] = 0
-                            print(f"Warning: Covariance for label {label} in window {i} is scalar. Assigned default distance 0.")
-                        else:
-                            window_distances["per-label"][str(label)] = fdd.frechet_distance(
-                                baseline.get_mean_vector_by_label(label), mean_l,
-                                baseline.get_covariance_matrix_by_label(label), cov_l)
+                        window_distances["per-label"][str(label)] = fdd.frechet_distance(
+                            baseline.get_mean_vector_by_label(label), mean_l,
+                            baseline.get_covariance_matrix_by_label(label), cov_l)
 
-            distribution_distances.append((i, window_distances))
-        return distribution_distances
+        distribution_distances.append((i, window_distances))
+    return distribution_distances
 
     @staticmethod
     def _proportional_sampling(label_list, E, Y_predicted, Y_original, window_size, n_windows, flag_replacement, proportions_dict):
