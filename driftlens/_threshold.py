@@ -360,9 +360,9 @@ class RandomSamplingThresholdEstimator(ThresholdEstimatorMethod):
             E_w_reduced = baseline.get_batch_PCA_model().transform(E_w)
             batch_mean = fdd.get_mean(E_w_reduced)
             batch_cov = fdd.get_covariance(E_w_reduced)
-            window_distances["per-batch"] = fdd.compute_frechet_distance(
-                baseline.get_batch_mean_vector(), baseline.get_batch_covariance_matrix(),
-                batch_mean, batch_cov)
+            window_distances["per-batch"] = fdd.frechet_distance(
+                baseline.get_batch_mean_vector(), batch_mean,
+                baseline.get_batch_covariance_matrix(), batch_cov)
 
             # Per-label distances
             for label in self.label_list:
@@ -380,9 +380,9 @@ class RandomSamplingThresholdEstimator(ThresholdEstimatorMethod):
                         E_l_reduced = pca_model.transform(E_l)
                         mean_l = fdd.get_mean(E_l_reduced)
                         cov_l = fdd.get_covariance(E_l_reduced)
-                        window_distances["per-label"][str(label)] = fdd.compute_frechet_distance(
-                            baseline.get_mean_vector_by_label(label), baseline.get_covariance_matrix_by_label(label),
-                            mean_l, cov_l)
+                        window_distances["per-label"][str(label)] = fdd.frechet_distance(
+                            baseline.get_mean_vector_by_label(label), mean_l,
+                            baseline.get_covariance_matrix_by_label(label), cov_l)
 
             distribution_distances.append((i, window_distances))
         return distribution_distances
