@@ -320,7 +320,10 @@ class RandomSamplingThresholdEstimator(ThresholdEstimatorMethod):
 
             dl_th = driftlens.DriftLens(self.label_list)
             dl_th.set_baseline(baseline)
-            distribution_distances = dl_th.compute_window_list_distribution_distances(E_windows, Y_predicted_windows)
+            
+            # Custom handling for None PCA models
+            distribution_distances = self._compute_distribution_distances_with_none_check(
+                dl_th, baseline, E_windows, Y_predicted_windows)
 
             per_batch_distances.append(distribution_distances[0][0]["per-batch"])
             for l in self.label_list:
@@ -336,8 +339,8 @@ class RandomSamplingThresholdEstimator(ThresholdEstimatorMethod):
         # Compute statistics for ThresholdClass
         batch_mean = np.mean(per_batch_distances_sorted)
         batch_std = np.std(per_batch_distances_sorted)
-        per_label_mean = {str(l): np.mean(per_label_distances[l]) for l in self.label_list}
-        per_label_std = {str(l): np.std(per_label_distances[l]) for l in self.label_list}
+        per_label_mean = {str(l): np.mean(per_label_distances[l]) if per_label_distances[l] else 0 for l in self.label_list}
+        per_label_std = {str(l): np.std(per_label_distances[l]) if per_label_distances[l] else 0 for l in self.label_list}
 
         distribution_distances_list = {"batch": per_batch_distances_sorted.tolist(), "per-label": {str(l): per_label_distances[l] for l in self.label_list}}
 
@@ -345,6 +348,43 @@ class RandomSamplingThresholdEstimator(ThresholdEstimatorMethod):
         threshold.fit(batch_mean, batch_std, per_label_mean, per_label_std, self.label_list, batch_n_pc, per_label_n_pc,
                       window_size, distribution_distances_list, self.threshold_method_name)
         return threshold
+
+    def _compute_distribution_distances_with_none_check(self, drift_lens, baseline, E_windows, Y_windows):
+        """ Custom method to handle None PCA models in baseline. """
+        distribution_distances = []
+        for i, (E_w, Y_w) in enumerate(zip(E_windows, Y_windows)):
+            window_distances = {"per-batch": None, "per-label": {}}
+            
+            # Batch distance (assumes batch PCA is always valid)
+            E_w_reduced = baseline.get_batch_PCA_model().transform(E_w)
+            batch_mean = fdd.get_mean(E_w_reduced)
+            batch_cov = fdd.get_covariance(E_w_reduced)
+            window_distances["per-batch"] = fdd.compute_frechet_distance(
+                baseline.get_batch_mean_vector(), baseline.get_batch_covariance_matrix(),
+                batch_mean, batch_cov)
+
+            # Per-label distances
+            for label in self.label_list:
+                pca_model = baseline.get_PCA_model_by_label(label)
+                if pca_model is None:
+                    # No PCA model for this label; assign a default or skip
+                    window_distances["per-label"][str(label)] = 0  # Default distance
+                    print(f"Warning: No PCA model for label {label}. Assigned default distance 0.")
+                else:
+                    E_l_idxs = np.nonzero(Y_w == label)[0]
+                    if len(E_l_idxs) == 0:
+                        window_distances["per-label"][str(label)] = 0  # No samples in window
+                    else:
+                        E_l = E_w[E_l_idxs]
+                        E_l_reduced = pca_model.transform(E_l)
+                        mean_l = fdd.get_mean(E_l_reduced)
+                        cov_l = fdd.get_covariance(E_l_reduced)
+                        window_distances["per-label"][str(label)] = fdd.compute_frechet_distance(
+                            baseline.get_mean_vector_by_label(label), baseline.get_covariance_matrix_by_label(label),
+                            mean_l, cov_l)
+
+            distribution_distances.append((i, window_distances))
+        return distribution_distances
 
     @staticmethod
     def _proportional_sampling(label_list, E, Y_predicted, Y_original, window_size, n_windows, flag_replacement, proportions_dict):
