@@ -326,9 +326,10 @@ class RandomSamplingThresholdEstimator(ThresholdEstimatorMethod):
             distribution_distances = self._compute_distribution_distances_with_none_check(
                 dl_th, baseline, E_windows, Y_predicted_windows)
 
-            per_batch_distances.append(distribution_distances[0][0]["per-batch"])
+            # Corrected indexing: use [1] to access the distances dict
+            per_batch_distances.append(distribution_distances[0][1]["per-batch"])
             for l in self.label_list:
-                per_label_distances[l].append(distribution_distances[0][0]["per-label"][str(l)])
+                per_label_distances[l].append(distribution_distances[0][1]["per-label"][str(l)])
 
         per_batch_distances_arr = np.array(per_batch_distances)
         indices = (-per_batch_distances_arr).argsort()
