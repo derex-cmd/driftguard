@@ -512,7 +512,7 @@ class RandomSamplingThresholdEstimator(ThresholdEstimatorMethod):
             if n_residual_samples != 0:
                 count_residual = 0
                 while count_residual < n_residual_samples:
-                    random_idx_l = np.random.choice(len(label_list), 1, replace W=True)[0]
+                    random_idx_l = np.random.choice(len(label_list), 1, replace=True)[0]
                     random_l = label_list[random_idx_l]
                     m_l = len(per_label_E[str(random_l)])
                     if m_l == 0:
