@@ -1,4 +1,4 @@
-'''from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod
 from sklearn.decomposition import PCA
 
 import numpy as np
@@ -674,3 +674,4 @@ class StandardBaselineEstimator(BaselineEstimatorMethod):
                      per_label_mean_dict, per_label_covariance_dict, per_label_PCA_dict, per_label_n_samples_dict,
                      batch_mean, batch_covariance, batch_PCA, batch_n_samples)
         return baseline
+'''
